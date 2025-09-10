@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Invoice Generator</title>
+
+  <!-- jsPDF + AutoTable -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+
+  <style>
+    body {
+      font-family: "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 0;
+      background: linear-gradient(135deg, #f0f4ff, #dbeafe);
+    }
+    .invoice-box {
+      max-width: 950px;
+      margin: 30px auto;
+      background: #fff;
+      padding: 25px 30px;
+      border-radius: 14px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #1e3c72;
+      font-size: 28px;
+    }
+    .section-title {
+      font-weight: bold;
+      margin: 15px 0 8px;
+      font-size: 16px;
+      color: #1e3c72;
+      border-left: 4px solid #1e3c72;
+      padding-left: 8px;
+    }
+    table {
+      width: 100%;
+      margin-bottom: 20px;
+    }
+    table.details td {
+      padding: 8px;
+    }
+    .items {
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    .items th, .items td {
+      border: 1px solid #ccc;
+      padding: 10px;
+      text-align: center;
+      font-size: 14px;
+    }
+    .items th {
+      background: #1e3c72;
+      color: white;
+    }
+    input {
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      text-align: center;
+      width: 100%;
+      padding: 6px 8px;
+      font-size: 14px;
+      transition: 0.2s;
+    }
+    input:focus {
+      outline: none;
+      border-color: #1e3c72;
+      box-shadow: 0 0 5px rgba(30,60,114,0.3);
+    }
+    .btn {
+      display: inline-block;
+      padding: 10px 20px;
+      margin: 10px 5px 20px 0;
+      background: #1e3c72;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: 0.3s;
+    }
+    .btn:hover {
+      background: #2a5298;
+    }
+    .delete-btn {
+      background: #dc3545;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    .delete-btn:hover {
+      background: #a71d2a;
+    }
+    .highlight {
+      background: #eaf1fb;
+      font-weight: bold;
+      border-radius: 5px;
+      padding: 8px;
+    }
+    hr {
+      border: none;
+      border-top: 2px solid #1e3c72;
+      margin: 15px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="invoice-box" id="invoice">
+    <h1>Invoice Generator</h1>
+
+    <p class="section-title">Business & Customer Details</p>
+    <table class="details">
+      <tr>
+        <td><b>Shop Name:</b><br>
+          <input type="text" id="shopName" placeholder="Enter Shop Name" />
+        </td>
+        <td><b>Bill No:</b><br>
+          <input type="text" id="billNo" placeholder="Enter Bill No" />
+        </td>
+      </tr>
+      <tr>
+        <td><b>Date:</b><br>
+          <input type="date" id="date" />
+        </td>
+        <td><b>Customer:</b><br>
+          <input type="text" id="customer" placeholder="Customer Name" />
+        </td>
+      </tr>
+      <tr>
+        <td><b>Phone:</b><br>
+          <input type="text" id="phone" placeholder="Phone Number" />
+        </td>
+      </tr>
+    </table>
+
+    <p class="section-title">Items</p>
+    <table class="items" id="itemsTable">
+      <tr>
+        <th>SN</th>
+        <th>Particulars</th>
+        <th>Qty</th>
+        <th>Rate</th>
+        <th>Amount</th>
+        <th>Action</th>
+      </tr>
+      <tr>
+        <td>1</td>
+        <td><input type="text" placeholder="Item Name" /></td>
+        <td><input type="number" value="0" oninput="updateTotals()" /></td>
+        <td><input type="number" value="0" oninput="updateTotals()" /></td>
+        <td><input type="number" value="0" readonly /></td>
+        <td><button class="delete-btn" onclick="deleteRow(this)">❌</button></td>
+      </tr>
+    </table>
+
+    <button class="btn" onclick="addRow()">+ Add More Items</button>
+
+    <table class="totals">
+      <tr>
+        <td style="text-align: right"><b>Total Items:</b></td>
+        <td><input type="number" id="totalItems" value="0" readonly /></td>
+      </tr>
+      <tr>
+        <td style="text-align: right"><b>Gross Amount:</b></td>
+        <td><input type="number" id="grossAmount" value="0" readonly /></td>
+      </tr>
+      <tr>
+        <td style="text-align: right"><b>Net Amount:</b></td>
+        <td><input type="number" id="netAmount" value="0" class="highlight" readonly /></td>
+      </tr>
+    </table>
+
+    <p class="section-title">Payment</p>
+    <p>
+      <b>Upload QR Code:</b>
+      <input type="file" id="qrInput" accept="image/*" />
+    </p>
+
+    <button class="btn" onclick="generatePDF()">📄 Generate PDF</button>
+  </div>
+
+  <script>
+    let qrImageBase64 = null;
+
+    document.getElementById("qrInput").addEventListener("change", function (e) {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => (qrImageBase64 = event.target.result);
+        reader.readAsDataURL(file);
+      }
+    });
+
+    function addRow() {
+      let table = document.getElementById("itemsTable");
+      let rowCount = table.rows.length;
+      let row = table.insertRow(rowCount);
+      row.innerHTML = `
+        <td>${rowCount}</td>
+        <td><input type="text" placeholder="Item Name"></td>
+        <td><input type="number" value="0" oninput="updateTotals()"></td>
+        <td><input type="number" value="0" oninput="updateTotals()"></td>
+        <td><input type="number" value="0" readonly></td>
+        <td><button class="delete-btn" onclick="deleteRow(this)">❌</button></td>
+      `;
+      updateTotals();
+    }
+
+    function deleteRow(btn) {
+      let row = btn.parentNode.parentNode;
+      row.parentNode.removeChild(row);
+      updateSerialNumbers();
+      updateTotals();
+    }
+
+    function updateSerialNumbers() {
+      let table = document.getElementById("itemsTable");
+      for (let i = 1; i < table.rows.length; i++) {
+        table.rows[i].cells[0].innerText = i;
+      }
+    }
+
+    function updateTotals() {
+      let table = document.getElementById("itemsTable");
+      let totalItems = 0, grossAmount = 0;
+      for (let i = 1; i < table.rows.length; i++) {
+        let qty = parseFloat(table.rows[i].cells[2].children[0].value) || 0;
+        let rate = parseFloat(table.rows[i].cells[3].children[0].value) || 0;
+        let amount = qty * rate;
+        table.rows[i].cells[4].children[0].value = amount.toFixed(2);
+        if (qty > 0) totalItems += qty;
+        grossAmount += amount;
+      }
+      document.getElementById("totalItems").value = totalItems;
+      document.getElementById("grossAmount").value = grossAmount.toFixed(2);
+      document.getElementById("netAmount").value = grossAmount.toFixed(2);
+    }
+
+    function getTableData() {
+      let table = document.getElementById("itemsTable");
+      let data = [];
+      for (let i = 1; i < table.rows.length; i++) {
+        let sn = table.rows[i].cells[0].innerText;
+        let item = table.rows[i].cells[1].children[0].value;
+        let qty = table.rows[i].cells[2].children[0].value;
+        let rate = table.rows[i].cells[3].children[0].value;
+        let amount = table.rows[i].cells[4].children[0].value;
+        data.push([sn, item, qty, rate, amount]);
+      }
+      return data;
+    }
+
+    async function generatePDF() {
+      const { jsPDF } = window.jspdf;
+      let doc = new jsPDF();
+
+      let shopName = document.getElementById("shopName").value || "Your Shop Name";
+
+      // Header bar
+      doc.setFillColor(30, 60, 114);
+      doc.rect(0, 0, 210, 40, "F");
+      doc.setFontSize(18);
+      doc.setTextColor(255, 255, 255);
+      doc.text(shopName, 105, 18, { align: "center" });
+
+      // Bill details
+      doc.setFontSize(11);
+      doc.setTextColor(0, 0, 0);
+      doc.text("Bill No: " + document.getElementById("billNo").value, 14, 50);
+      doc.text("Date: " + document.getElementById("date").value, 150, 50);
+      doc.text("Customer: " + document.getElementById("customer").value, 14, 58);
+      doc.text("Phone: " + document.getElementById("phone").value, 150, 58);
+
+      // Items Table
+      doc.autoTable({
+        startY: 70,
+        head: [["SN", "Particulars", "Qty", "Rate", "Amount"]],
+        body: getTableData(),
+        headStyles: { fillColor: [30, 60, 114], textColor: 255, fontStyle: "bold" },
+        bodyStyles: { fillColor: [245, 247, 255], textColor: [0, 0, 0] },
+        alternateRowStyles: { fillColor: [255, 255, 255] },
+        styles: { halign: "center" },
+      });
+
+      let finalY = doc.lastAutoTable.finalY || 90;
+
+      // Totals box
+      doc.setFillColor(240, 240, 240);
+      doc.roundedRect(14, finalY + 10, 182, 20, 3, 3, "F");
+      doc.setFontSize(12);
+      doc.setTextColor(0, 0, 0);
+      doc.text("Total Items: " + document.getElementById("totalItems").value, 20, finalY + 23);
+      doc.text("Gross Amount: " + document.getElementById("grossAmount").value, 120, finalY + 23);
+
+      // Highlight Net Amount
+      doc.setFillColor(30, 60, 114);
+      doc.roundedRect(14, finalY + 40, 182, 15, 3, 3, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(14);
+      doc.text("Net Amount: " + document.getElementById("netAmount").value, 20, finalY + 50);
+
+      // ✅ Add QR Code
+      if (qrImageBase64) {
+        const imgType = qrImageBase64.startsWith("data:image/png") ? "PNG" : "JPEG";
+        doc.setFontSize(12);
+        doc.setTextColor(0, 0, 0);
+        doc.text("Scan to Pay", 30, finalY + 65);
+        doc.addImage(qrImageBase64, imgType, 20, finalY + 70, 50, 50);
+      }
+
+      // Footer
+      doc.setDrawColor(150);
+      doc.line(14, 280, 196, 280);
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text("1. Goods once sold will not be taken back.", 14, 285);
+      doc.text("2. All subject to jurisdiction only.", 14, 292);
+
+      doc.setFontSize(11);
+      doc.setTextColor(30, 60, 114);
+      doc.text("✨ Thank you for shopping with us! Visit again ✨", 105, 305, { align: "center" });
+
+      doc.save("Invoice.pdf");
+    }
+  </script>
+</body>
+</html>
